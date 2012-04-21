@@ -1,6 +1,3 @@
-// Saucer instead of guy
-// max height/current height for each sector
-
 (function () {
   "use strict";
 
@@ -10,19 +7,19 @@
     DT = 2 * Math.PI / SECTORS,  // angle of a single sector
     PLANET_COLOR = "#ff4040",    // TODO change to show the status of the planet
 
-    SVG,
+    SVG = document.querySelector("svg"),
     STARS = 1000,
     STAR_R = 10,
-    PLANET,                    // the planet we're playing on
+    PLANET = document.getElementById("planet"),
     PERIOD_MS = 360000,        // rotation period (in milliseconds)
 
-    PLAYER,
+    PLAYER = document.getElementById("player"),
     PLAYER_HEIGHT = 50,
     PLAYER_WIDTH = 20,
     PLAYER_COLOR = "#08f",
     PLAYER_ALTITUDE = 1200,
-    PLAYER_A = 0,              // angular position of the player (in degrees)
-    PLAYER_DA = 5;             // angular increment
+    PLAYER_A = 0,               // angular position of the player (in degrees)
+    PLAYER_DA = 360 / SECTORS;  // angular increment
 
   // Simple format function for messages and templates. Use {0}, {1}...
   // as slots for parameters. Missing parameters are replaced with the empty
@@ -125,21 +122,19 @@
   }
 
   // Create a roughly round planet of the given radius and number of sectors
-  function create_planet(radius, amplitude, sectors) {
-    var i, g;
-    g = svg_elem("g");
+  function create_planet(g, radius, amplitude, sectors) {
+    var i;
     g.heights = [];
     g.path = g.appendChild(svg_elem("path", { fill: PLANET_COLOR }));
     for (i = 0; i < sectors; ++i) {
       g.heights.push(radius + amplitude * (Math.random() - 0.5));
     }
     update_planet(g);
-    return g;
   }
 
   function update_player() {
     PLAYER.setAttribute("transform", "rotate({0}) translate({1})"
-      .fmt(PLAYER_A, PLAYER_ALTITUDE));
+      .fmt(PLAYER_A + PLAYER_DA / 2, PLAYER_ALTITUDE));
   }
 
   function tick(now) {
@@ -157,11 +152,8 @@
   }
 
   // Initialize the game
-  SVG = document.querySelector("svg");
-  SVG.appendChild(stars());
-  PLANET = SVG.appendChild(create_planet(R, AMPLITUDE, SECTORS));
-  PLAYER = PLANET.appendChild(svg_elem("rect", { width: PLAYER_HEIGHT,
-    height: PLAYER_WIDTH, fill: PLAYER_COLOR }));
+  SVG.insertBefore(stars(), PLANET);
+  create_planet(PLANET, R, AMPLITUDE, SECTORS);
 
   document.addEventListener("keydown", function (e) {
     if (e.keyCode === 37) {
