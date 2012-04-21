@@ -1,23 +1,28 @@
-/*jslint devel: true, browser: true, maxerr: 50, indent: 2 */
+// Saucer instead of guy
+// max height/current height for each sector
 
 (function () {
   "use strict";
 
-  var R = 1000,                // planet radius
-    SEGMENTS = 24,             // planet segments (coarseness)
-    PLANET_COLOR = "#f08",  // color of the planet
-
-    PLAYER,
-    PLAYER_HEIGHT = 50,        // player height
-    PLAYER_WIDTH = 20,
-    PLAYER_COLOR = "#08f",
-    PLAYER_T = Math.PI / 4,
+  var R = 1000,                  // planet radius
+    SECTORS = 36,                // the planet is divided in sectors
+    AMPLITUDE = 50,              // bump/mining amplitude
+    DT = 2 * Math.PI / SECTORS,  // angle of a single sector
+    PLANET_COLOR = "#ff4040",    // TODO change to show the status of the planet
 
     SVG,
     STARS = 1000,
     STAR_R = 10,
     PLANET,                    // the planet we're playing on
-    PERIOD_MS = 180000;        // rotation period (in milliseconds)
+    PERIOD_MS = 360000,        // rotation period (in milliseconds)
+
+    PLAYER,
+    PLAYER_HEIGHT = 50,
+    PLAYER_WIDTH = 20,
+    PLAYER_COLOR = "#08f",
+    PLAYER_ALTITUDE = 1200,
+    PLAYER_A = 0,              // angular position of the player (in degrees)
+    PLAYER_DA = 5;             // angular increment
 
   // Simple format function for messages and templates. Use {0}, {1}...
   // as slots for parameters. Missing parameters are replaced with the empty
@@ -39,59 +44,96 @@
   }
 
   // Shortcut to create SVG elements
-  function svg_elem(name) {
-    return document.createElementNS("http://www.w3.org/2000/svg", name);
+  function svg_elem(name, attrs) {
+    var attr,
+        elem = document.createElementNS("http://www.w3.org/2000/svg", name);
+    if (typeof attrs === "object") {
+      for (attr in attrs) {
+        elem.setAttribute(attr, attrs[attr]);
+      }
+    }
+    return elem;
   }
 
-  // Create a roughly round planet of the given radius and number of segments
-  function create_planet(radius, amplitude, segments) {
-    var i, incr, t, r, x, y, d, g, path;
-    incr = 2 * Math.PI / segments;
-    r = radius + amplitude * (Math.random() - 0.5);
+  // Add stars to the background
+  function stars() {
+    var i, vb, g;
+    vb = SVG.viewBox.baseVal;
     g = svg_elem("g");
-    path = g.appendChild(svg_elem("path"));
-    for (i = 0, t = 0, x = r, y = 0, d = ""; i < segments; ++i) {
-
-      d += "L{0},{1}".fmt(x, y);
-      r = radius + amplitude * (Math.random() - 0.5);
-      t += incr;
-      x = r * Math.cos(t);
-      y = r * Math.sin(t);
+    for (i = 0; i < STARS; ++i) {
+      g.appendChild(svg_elem("circle", { r: Math.random() * STAR_R,
+        cx: Math.random() * vb.width + vb.x,
+        cy: Math.random() * vb.height + vb.y,
+        fill: "white", "fill-opacity": Math.random() }));
     }
-    path.setAttribute("d", d.replace(/^L/, "M"));
     return g;
+  }
+
+  function update_planet(planet) {
+    var i, t, d, x, y;
+    for (i = 0, t = 0, d = ""; i < SECTORS; ++i) {
+      x = planet.heights[i] * Math.cos(t);
+      y = planet.heights[i] * Math.sin(t);
+      d += "L{0}, {1}".fmt(x, y);
+      t += DT;
+      x = planet.heights[i] * Math.cos(t);
+      y = planet.heights[i] * Math.sin(t);
+      d += "L{0}, {1}".fmt(x, y);
+    }
+    planet.path.setAttribute("d", d.replace(/^L/, "M"));
+  }
+
+  // Create a roughly round planet of the given radius and number of sectors
+  function create_planet(radius, amplitude, sectors) {
+    var i, t, dt, x, y, d, g, r, path;
+    g = svg_elem("g");
+    g.heights = [];
+    g.path = g.appendChild(svg_elem("path", { fill: PLANET_COLOR }));
+    for (i = 0; i < sectors; ++i) {
+      g.heights.push(radius + amplitude * (Math.random() - 0.5));
+    }
+    update_planet(g);
+    return g;
+  }
+
+  function update_player() {
+    PLAYER.setAttribute("transform", "rotate({0}) translate({1})"
+      .fmt(PLAYER_A, PLAYER_ALTITUDE));
   }
 
   function tick(now) {
     var t = (now % PERIOD_MS) / PERIOD_MS * 360;
     PLANET.setAttribute("transform", "rotate({0})".fmt(t));
-    requestAnimationFrame(tick);
+    update_player();
+    window.requestAnimationFrame(tick);
   }
 
-  function stars() {
-    var i, star, w, h, vb;
-    vb = SVG.viewBox.baseVal;
-    for (i = 0; i < STARS; ++i) {
-      star = SVG.appendChild(svg_elem("circle"));
-      star.setAttribute("r", Math.random() * STAR_R);
-      star.setAttribute("cx", Math.random() * vb.width + vb.x);
-      star.setAttribute("cy", Math.random() * vb.height + vb.y);
-      star.setAttribute("fill", "white");
-      star.setAttribute("fill-opacity", Math.random());
-    }
+  function mine() {
+    var sector = Math.floor(PLAYER_A * SECTORS / 360);
+    var amp = Math.random() * AMPLITUDE;
+    PLANET.heights[sector] -= amp;
+    update_planet(PLANET);
   }
 
   // Initialize the game
   SVG = document.querySelector("svg");
-  stars();
-  PLANET = SVG.appendChild(create_planet(R, 2 * PLAYER_HEIGHT, SEGMENTS));
-  PLANET.setAttribute("fill", PLANET_COLOR);
-  PLAYER = PLANET.appendChild(svg_elem("rect"));
-  PLAYER.setAttribute("width", PLAYER_WIDTH);
-  PLAYER.setAttribute("height", PLAYER_HEIGHT);
-  PLAYER.setAttribute("x", -PLAYER_WIDTH / 2);
-  PLAYER.setAttribute("y", -R - PLAYER_HEIGHT);
-  PLAYER.setAttribute("fill", PLAYER_COLOR);
+  SVG.appendChild(stars());
+  PLANET = SVG.appendChild(create_planet(R, AMPLITUDE, SECTORS));
+  PLAYER = PLANET.appendChild(svg_elem("rect", { width: PLAYER_HEIGHT,
+    height: PLAYER_WIDTH, fill: PLAYER_COLOR }));
+
+  document.addEventListener("keydown", function (e) {
+    if (e.keyCode === 37) {
+      e.preventDefault();
+      PLAYER_A = (PLAYER_A - PLAYER_DA + 360) % 360;
+    } else if (e.keyCode === 39) {
+      e.preventDefault();
+      PLAYER_A = (PLAYER_A + PLAYER_DA) % 360;
+    } else if (e.keyCode === 40) {
+      e.preventDefault();
+      mine();
+    }
+  });
 
   tick();
 
