@@ -46,14 +46,27 @@
   // Shortcut to create SVG elements
   function svg_elem(name, attrs) {
     var attr,
-        elem = document.createElementNS("http://www.w3.org/2000/svg", name);
+      elem = document.createElementNS("http://www.w3.org/2000/svg", name);
     if (typeof attrs === "object") {
       for (attr in attrs) {
-        elem.setAttribute(attr, attrs[attr]);
+        if (attrs.hasOwnProperty(attr)) {
+          elem.setAttribute(attr, attrs[attr]);
+        }
       }
     }
     return elem;
   }
+
+  function svg_point(e) {
+    var p = SVG.createSVGPoint();
+    p.x = e.targetTouches ? e.targetTouches[0].clientX : e.clientX;
+    p.y = e.targetTouches ? e.targetTouches[0].clientY : e.clientY;
+    try {
+      p = p.matrixTransform(SVG.getScreenCTM().inverse());
+    } catch (e) {
+    }
+    return p;
+  };
 
   // Add stars to the background
   function stars() {
@@ -61,10 +74,38 @@
     vb = SVG.viewBox.baseVal;
     g = svg_elem("g");
     for (i = 0; i < STARS; ++i) {
-      g.appendChild(svg_elem("circle", { r: Math.random() * STAR_R,
-        cx: Math.random() * vb.width + vb.x,
-        cy: Math.random() * vb.height + vb.y,
-        fill: "white", "fill-opacity": Math.random() }));
+      (function () {
+        var c,
+          x = Math.random() * vb.width + vb.x,
+          y = Math.random() * vb.height + vb.y;
+        g.appendChild(svg_elem("circle", { r: Math.random() * STAR_R,
+          cx: x, cy: y, fill: "white", "fill-opacity": Math.random() }));
+        c = g.appendChild(svg_elem("circle", { r: 2 * STAR_R, cx: x, cy: y,
+          "fill-opacity": 0 }));
+        c.addEventListener("mousedown", function (e) {
+          var move, up, line = g.appendChild(svg_elem("line", { x1: x, y1: y,
+            x2: x, y2: y, stroke: "white", "stroke-width": 4,
+            "stroke-opacity": Math.random() / 2 + 0.5 }));
+          move = function (e) {
+            var p = svg_point(e);
+            line.setAttribute("x2", p.x);
+            line.setAttribute("y2", p.y);
+          };
+          up = function (e) {
+            g.removeChild(line);
+            var elem = document.elementFromPoint(e.clientX, e.clientY);
+            if (elem && elem.parentNode === g && elem.hasAttribute("cx")) {
+              line.setAttribute("x2", elem.getAttribute("cx"));
+              line.setAttribute("y2", elem.getAttribute("cy"));
+              g.insertBefore(line, g.firstChild);
+            }
+            document.removeEventListener("mousemove", move, false);
+            document.removeEventListener("mouseup", up, false);
+          };
+          document.addEventListener("mousemove", move, false);
+          document.addEventListener("mouseup", up, false);
+        }, false);
+      }());
     }
     return g;
   }
@@ -85,7 +126,7 @@
 
   // Create a roughly round planet of the given radius and number of sectors
   function create_planet(radius, amplitude, sectors) {
-    var i, t, dt, x, y, d, g, r, path;
+    var i, g;
     g = svg_elem("g");
     g.heights = [];
     g.path = g.appendChild(svg_elem("path", { fill: PLANET_COLOR }));
@@ -109,8 +150,8 @@
   }
 
   function mine() {
-    var sector = Math.floor(PLAYER_A * SECTORS / 360);
-    var amp = Math.random() * AMPLITUDE;
+    var sector = Math.floor(PLAYER_A * SECTORS / 360),
+      amp = Math.random() * AMPLITUDE;
     PLANET.heights[sector] -= amp;
     update_planet(PLANET);
   }
