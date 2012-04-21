@@ -1,4 +1,4 @@
-tiny-world
+Tiny World
 ==========
 
-Ludum Dare 23 entry (hopefully!)
+My Ludum Dare 23 entry (hopefully!)
