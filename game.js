@@ -1,26 +1,25 @@
 (function () {
   "use strict";
 
-  var R = 1000,                  // planet radius
-    SECTORS = 36,                // the planet is divided in sectors
-    AMPLITUDE = 50,              // bump/mining amplitude
-    DT = 2 * Math.PI / SECTORS,  // angle of a single sector
-    SMOOTHING = 0.2,             // scale factor for Bézier smoothing
-    PLANET_COLOR = "#ff4040",    // TODO change to show the status of the planet
-
-    SVG = document.querySelector("svg"),
-    STARS = 1000,
-    STAR_R = 10,
-    PLANET = document.getElementById("planet"),
+  var SMOOTHING = 0.2,             // scale factor for Bézier smoothing
+    SVG = document.querySelector("svg"),         // the SVG context
+    SYSTEM = document.getElementById("system"),  // planetary system
+    PLANET = document.getElementById("planet"),  // planet itself
+    CORE = document.getElementById("core"),      // planet core
+    PLAYER = document.getElementById("player"),  // player saucer
     PERIOD_MS = 360000,        // rotation period (in milliseconds)
-
-    PLAYER = document.getElementById("player"),
-    PLAYER_HEIGHT = 50,
-    PLAYER_WIDTH = 20,
-    PLAYER_COLOR = "#08f",
-    PLAYER_ALTITUDE = 1200,
+    PLANET_R = 1200,                             // planet radius
+    PLANET_SECTORS = 48,
+    PLANET_AMPLITUDE = 50,                       // bump/mining amplitude
+    CORE_R = 300,                                // core radius
+    CORE_AMPLITUDE = 20,                         // core amplitude
+    CORE_SECTORS = 16,
+    DT = 2 * Math.PI / PLANET_SECTORS,  // angle of a single sector
+    STARS = 1000,                // number of stars
+    STAR_R = 10,
+    PLAYER_ALTITUDE = 1500,
     PLAYER_A = 0,               // angular position of the player (in degrees)
-    PLAYER_DA = 360 / SECTORS;  // angular increment
+    PLAYER_DA = 360 / PLANET_SECTORS;  // angular increment
 
   // Simple format function for messages and templates. Use {0}, {1}...
   // as slots for parameters. Missing parameters are replaced with the empty
@@ -55,6 +54,7 @@
     return elem;
   }
 
+  // Get a point in SVG coordinates from an event
   function svg_point(e) {
     var p = SVG.createSVGPoint();
     p.x = e.targetTouches ? e.targetTouches[0].clientX : e.clientX;
@@ -112,16 +112,16 @@
     return Math.sqrt(x * x + y * y);
   }
 
-  function update_planet(planet) {
-    var i, d, x0, y0, x1, y1, tx, ty, l, x2, y2, xa, ya, xb, yb;
-    d = "M{0},0".fmt(planet.heights[0]);
-    for (i = 0; i < SECTORS; i += 1) {
-      x0 = planet.heights[(i + SECTORS - 1) % SECTORS] * Math.cos((i - 1) * DT);
-      y0 = planet.heights[(i + SECTORS - 1) % SECTORS] * Math.sin((i - 1) * DT);
-      x1 = planet.heights[i] * Math.cos(i * DT);
-      y1 = planet.heights[i] * Math.sin(i * DT);
-      x2 = planet.heights[(i + 1) % SECTORS] * Math.cos((i + 1) * DT);
-      y2 = planet.heights[(i + 1) % SECTORS] * Math.sin((i + 1) * DT);
+  function update_spheroid(path) {
+    var i, n, d, dt, x0, y0, x1, y1, tx, ty, l, x2, y2, xa, ya, xb, yb;
+    d = "M{0},0".fmt(path.heights[0]);
+    for (i = 0, n = path.heights.length, dt = 2 * Math.PI / n; i < n; i += 1) {
+      x0 = path.heights[(i + n - 1) % n] * Math.cos((i - 1) * dt);
+      y0 = path.heights[(i + n - 1) % n] * Math.sin((i - 1) * dt);
+      x1 = path.heights[i] * Math.cos(i * dt);
+      y1 = path.heights[i] * Math.sin(i * dt);
+      x2 = path.heights[(i + 1) % n] * Math.cos((i + 1) * dt);
+      y2 = path.heights[(i + 1) % n] * Math.sin((i + 1) * dt);
       tx = x2 - x0;
       ty = y2 - y0;
       l = Math.sqrt(tx * tx + ty * ty);
@@ -133,18 +133,17 @@
       yb = y1 + SMOOTHING * ty * magnitude(x1 - x2, y1 - y2);
       d += "C{0},{1} {2},{3} {4},{5}".fmt(xa, ya, x1, y1, xb, yb);
     }
-    planet.path.setAttribute("d", d);
+    path.setAttribute("d", d);
   }
 
   // Create a roughly round planet of the given radius and number of sectors
-  function create_planet(g, radius, amplitude, sectors) {
+  function create_spheroid(path, radius, amplitude, sectors) {
     var i;
-    g.heights = [];
-    g.path = g.appendChild(svg_elem("path", { fill: PLANET_COLOR }));
+    path.heights = [];
     for (i = 0; i < sectors; ++i) {
-      g.heights.push(radius + amplitude * (Math.random() - 0.5));
+      path.heights.push(radius + amplitude * (Math.random() - 0.5));
     }
-    update_planet(g);
+    update_spheroid(path);
   }
 
   function update_player() {
@@ -154,21 +153,22 @@
 
   function tick(now) {
     var t = (now % PERIOD_MS) / PERIOD_MS * 360;
-    PLANET.setAttribute("transform", "rotate({0})".fmt(t));
+    SYSTEM.setAttribute("transform", "rotate({0})".fmt(t));
     update_player();
     window.requestAnimationFrame(tick);
   }
 
   function mine() {
-    var sector = Math.floor(PLAYER_A * SECTORS / 360),
-      amp = Math.random() * AMPLITUDE;
-    PLANET.heights[sector] -= amp;
-    update_planet(PLANET);
+    var sector = Math.floor(PLAYER_A * PLANET_SECTORS / 360),
+      amp = Math.random() * PLANET_AMPLITUDE;
+    PLANET.heights[sector] = Math.max(PLANET.heights[sector] - amp, CORE_R / 2);
+    update_spheroid(PLANET);
   }
 
   // Initialize the game
-  SVG.insertBefore(stars(), PLANET);
-  create_planet(PLANET, R, AMPLITUDE, SECTORS);
+  SVG.insertBefore(stars(), SYSTEM);
+  create_spheroid(PLANET, PLANET_R, PLANET_AMPLITUDE, PLANET_SECTORS);
+  create_spheroid(CORE, CORE_R, CORE_AMPLITUDE, CORE_SECTORS);
 
   document.addEventListener("keydown", function (e) {
     if (e.keyCode === 37) {
