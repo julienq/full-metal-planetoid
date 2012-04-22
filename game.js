@@ -12,10 +12,10 @@
     CONE = document.getElementById("cone"),            // mining cone
     ORE = document.getElementById("ore"),              // ore group
     PARTICLES = document.getElementById("particles"),  // player saucer
-    CASH_SPAN = document.getElementById("cash").querySelector("span"),
+    CASH_TEXT = document.getElementById("cash"),
+    CASH_OFFSET = 200,
     ORE_N = 100,
     ORE_R = 20,
-    ORE_DR = 1,
     ORE_DISTRIBUTION = 0.3,  // smaller clusters around the center, must be < 1
     ORE_VALUE = 20,
     CONE_R = 10,
@@ -178,9 +178,8 @@
         p.h += p.dh;
         p.setAttribute("cx", p.h * Math.cos(p.t));
         p.setAttribute("cy", p.h * Math.sin(p.t));
-        if (p.dr) {
-          p.setAttribute("r", parseFloat(p.getAttribute("r")) + p.dr);
-        }
+        p.setAttribute("x", p.h * Math.cos(p.t));
+        p.setAttribute("y", p.h * Math.sin(p.t));
       }
     });
   }
@@ -188,19 +187,21 @@
   // Rotate the planet and move the player
   // TODO interpolate player position
   function tick(now) {
-    var sector = Math.floor(PLAYER_A * PLANET_SECTORS / 360),
-      h = PLAYER_ALTITUDE;
-      // h = PLANET.heights[sector] + PLANET_AMPLITUDE;
+    var h = PLAYER_ALTITUDE;
     SYSTEM.setAttribute("transform", "rotate({0})"
       .fmt((now % PERIOD_MS) / PERIOD_MS * 360));
     PLAYER.setAttribute("transform", "rotate({0}) translate({1})"
       .fmt(PLAYER_A + PLAYER_DA / 2, PLAYER_ALTITUDE));
+    CASH_TEXT.setAttribute("transform",
+        "rotate({0}) translate({1}) rotate(90) translate({2})"
+      .fmt(PLAYER_A + PLAYER_DA / 2, PLAYER_ALTITUDE, CASH_OFFSET));
     CONE.setAttribute("d", "M0,0 L{0},{1} A{2},{2} 1 0,1 {3},{4} Z".fmt(
       h * Math.cos(-PLAYER_DA * Math.PI / 360),
       h * Math.sin(-PLAYER_DA * Math.PI / 360),
       CONE_R,
       h * Math.cos(PLAYER_DA * Math.PI / 360),
-      h * Math.sin(PLAYER_DA * Math.PI / 360)));
+      h * Math.sin(PLAYER_DA * Math.PI / 360)
+    ));
     CONE.setAttribute("transform", "rotate({0})"
       .fmt(PLAYER_A + PLAYER_DA / 2));
     update_particles(now);
@@ -222,12 +223,25 @@
     }
   }
 
+  // Add a text particle for money
+  function cost_particle(cost, sector) {
+    var t = PARTICLES.appendChild(svg_elem("text",
+      { fill: cost < 0 ? "red" : "white" }));
+    t.textContent = cost.toString();
+    t.t = (sector / PLANET_SECTORS + Math.random() * 0.04 - 0.02) *
+      2 * Math.PI;
+    t.h = PLANET.heights[sector] + Math.random() * PLANET_AMPLITUDE;
+    t.dh = PARTICLE_DH * (1 + (Math.random() * 0.2 - 0.1));
+    t.ttl = Date.now() + PARTICLE_TTL_MS * (1 + Math.random() * 0.2);
+  }
+
   // Mine one sector, return the amount of mining done
   function mine_sector(sector, amplitude, get_ore) {
     var h = Math.max(PLANET.heights[sector] - amplitude,
         PLANET.min_heights[sector]),
       dh = PLANET.heights[sector] - h,
-      e, p;
+      cost = Math.ceil(MINING_COST * dh / PLANET_AMPLITUDE),
+      c;
     PLANET.heights[sector] = h;
     add_particles(sector, Math.floor(dh / 4));
     [].forEach.call(ORE.childNodes, function (chunk) {
@@ -237,13 +251,17 @@
         chunk.ttl = Date.now() + PARTICLE_TTL_MS * (1 + Math.random() * 0.2);
         chunk.setAttribute("fill", ORE.getAttribute("fill"));
         if (get_ore) {
-          chunk.dr = ORE_DR;
-          CASH += Math.round(chunk.getAttribute("r") * ORE_VALUE);
+          c = Math.round(chunk.getAttribute("r") * ORE_VALUE);
+          CASH += c;
+          cost_particle(c, sector);
         }
         PARTICLES.appendChild(chunk);
       }
     });
-    return dh;
+    if (cost && get_ore) {
+      cost_particle(-cost, sector);
+    }
+    return cost;
   }
 
   // Actually the collapsing is more violent than I expected but I guess it
@@ -275,17 +293,17 @@
     }
   }
 
-  // TODO display cash more prominently
   function update_cash() {
-    CASH_SPAN.textContent = CASH;
+    CASH_TEXT.textContent = CASH;
+    CASH_TEXT.setAttribute("fill", CASH < 0 ? "red" : "white");
   }
 
   // Mine for ore
   function mine() {
-    var dh, sector = Math.floor(PLAYER_A * PLANET_SECTORS / 360);
-    dh = mine_sector(sector, Math.random() * PLANET_AMPLITUDE, true);
-    if (dh > 0) {
-      CASH -= Math.ceil(MINING_COST * dh / PLANET_AMPLITUDE);
+    var cost, sector = Math.floor(PLAYER_A * PLANET_SECTORS / 360);
+    cost = mine_sector(sector, Math.random() * PLANET_AMPLITUDE, true);
+    if (cost > 0) {
+      CASH -= cost;
       check_collapse(sector, -1);
       check_collapse(sector, 1);
       update_spheroid(PLANET);

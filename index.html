@@ -16,30 +16,25 @@
         text-decoration: none;
         color: #ff4040;
       }
-      #cash {
-        position: absolute;
-        top: 8px;
-        left: 8px;
-      }
     </style>
   </head>
   <body>
     <svg viewBox="-2000 -2000 4000 4000">
-      <g id="system">
+      <g id="system" font-family="Univers, Futura, sans-serif" font-size="100">
+        <path id="core" fill="#403530"/>
+        <path id="planet" fill="#ff4040" fill-rule="nonzero"/>
+        <g id="ore" fill="#f80"/>
+        <g id="particles"/>
+        <path id="cone" fill="#4fc" fill-opacity="0.2"/>
         <g id="player" fill="#08f">
           <circle r="40"/>
           <polygon points="0,40 -40,80 -40,-80 0,-40"/>
           <polygon points="-40,80, -50,60 -50,-60 -40,-80" fill="#f80"/>
           <rect x="-5" y="-40" width="15" height="80" fill="yellow"/>
         </g>
-        <path id="core" fill="#403530"/>
-        <path id="planet" fill="#ff4040" fill-rule="nonzero"/>
-        <g id="ore" fill="#f80"/>
-        <g id="particles"/>
-        <path id="cone" fill="#4fc" fill-opacity="0.2"/>
+        <text id="cash"/>
       </g>
     </svg>
-    <p id="cash">Cash: <span></span></p>
     <script src="game.js"></script>
   </body>
 </html>
