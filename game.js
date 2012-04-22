@@ -8,15 +8,16 @@
     CORE = document.getElementById("core"),            // planet core
     PLAYER = document.getElementById("player"),        // player saucer
     PARTICLES = document.getElementById("particles"),  // player saucer
-    PARTICLES_N = 10,
     PARTICLE_R = 20,
-    PARTICLE_TTL_MS = 3000,
+    PARTICLE_TTL_MS = 2000,
     PARTICLE_DH = 10,
     PERIOD_MS = 360000,        // rotation period (in milliseconds)
     PLANET_R = 1200,                             // planet radius
     PLANET_SECTORS = 48,
     PLANET_AMPLITUDE = 50,                       // bump/mining amplitude
+    MAX_DIFF = 3,                                // max diff between two sectors
     CORE_R = 300,                                // core radius
+    PLANET_MIN_HEIGHT = CORE_R / 2,
     CORE_AMPLITUDE = 20,                         // core amplitude
     CORE_SECTORS = 16,
     STARS = 1000,                // number of stars
@@ -152,12 +153,13 @@
     update_spheroid(path);
   }
 
+  // Update the particles movement
   function update_particles(now) {
     [].forEach.call(PARTICLES.childNodes, function (p) {
       if (now > p.ttl) {
         PARTICLES.removeChild(p);
       } else {
-        p.h += PARTICLE_DH;
+        p.h += p.dh;
         p.setAttribute("cx", p.h * Math.cos(p.t));
         p.setAttribute("cy", p.h * Math.sin(p.t));
       }
@@ -176,27 +178,49 @@
   }
 
   // Add particles after mining
-  function add_particles(sector) {
+  function add_particles(sector, n) {
     var i, particle;
-    for (i = 0; i < PARTICLES_N; i += 1) {
+    for (i = 0; i < n; i += 1) {
       particle = PARTICLES.appendChild(svg_elem("circle", {
         fill: PLANET.getAttribute("fill"), r: Math.random() * PARTICLE_R }));
       particle.t = (sector / PLANET_SECTORS + Math.random() * 0.04 - 0.02) *
         2 * Math.PI;
       particle.h = PLANET.heights[sector] + Math.random() * PLANET_AMPLITUDE;
+      particle.dh = PARTICLE_DH * 1 + (Math.random() * 0.2 - 0.1);
       particle.ttl = Date.now() + PARTICLE_TTL_MS * (1 + Math.random() * 0.2);
+    }
+  }
+
+  // Mine one sector, return the amount of mining done
+  function mine_sector(sector, amplitude) {
+    var h = Math.max(PLANET.heights[sector] - amplitude, PLANET_MIN_HEIGHT),
+      dh = PLANET.heights[sector] - h;
+    PLANET.heights[sector] = h;
+    add_particles(sector, Math.floor(dh / 4));
+    return dh;
+  }
+
+  function check_collapse(sector, incr) {
+    var sectors = PLANET.heights.length,
+      s = (sector + sectors + incr) % sectors,
+      dh = PLANET.heights[s] - PLANET.heights[sector];
+    if (dh > PLANET_AMPLITUDE * MAX_DIFF) {
+      if (mine_sector(s, Math.random() * 2 * dh)) {
+        check_collapse(s, incr);
+      }
     }
   }
 
   // Mine for ore
   // TODO ore :)
-  // TODO nearby sectors crumble
   function mine() {
     var i, sector = Math.floor(PLAYER_A * PLANET_SECTORS / 360),
       amp = Math.random() * PLANET_AMPLITUDE;
-    PLANET.heights[sector] = Math.max(PLANET.heights[sector] - amp, 0);
-    add_particles(sector);
-    update_spheroid(PLANET);
+    if (mine_sector(sector, Math.random() * PLANET_AMPLITUDE) > 0) {
+      check_collapse(sector, -1);
+      check_collapse(sector, 1);
+      update_spheroid(PLANET);
+    }
   }
 
   // Initialize the game
