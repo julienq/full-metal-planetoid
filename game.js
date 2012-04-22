@@ -2,11 +2,16 @@
   "use strict";
 
   var SMOOTHING = 0.2,             // scale factor for Bézier smoothing
-    SVG = document.querySelector("svg"),         // the SVG context
-    SYSTEM = document.getElementById("system"),  // planetary system
-    PLANET = document.getElementById("planet"),  // planet itself
-    CORE = document.getElementById("core"),      // planet core
-    PLAYER = document.getElementById("player"),  // player saucer
+    SVG = document.querySelector("svg"),               // the SVG context
+    SYSTEM = document.getElementById("system"),        // planetary system
+    PLANET = document.getElementById("planet"),        // planet itself
+    CORE = document.getElementById("core"),            // planet core
+    PLAYER = document.getElementById("player"),        // player saucer
+    PARTICLES = document.getElementById("particles"),  // player saucer
+    PARTICLES_N = 10,
+    PARTICLE_R = 20,
+    PARTICLE_TTL_MS = 3000,
+    PARTICLE_DH = 10,
     PERIOD_MS = 360000,        // rotation period (in milliseconds)
     PLANET_R = 1200,                             // planet radius
     PLANET_SECTORS = 48,
@@ -14,7 +19,6 @@
     CORE_R = 300,                                // core radius
     CORE_AMPLITUDE = 20,                         // core amplitude
     CORE_SECTORS = 16,
-    DT = 2 * Math.PI / PLANET_SECTORS,  // angle of a single sector
     STARS = 1000,                // number of stars
     STAR_R = 10,
     PLAYER_ALTITUDE = 1500,
@@ -26,7 +30,7 @@
   // string.
   String.prototype.fmt = function () {
     var args = [].slice.call(arguments);
-    return this.replace(/\{(\d+)\}/g, function (_, p) { return args[p]; });
+    return this.replace(/\{(\d+)\}/g, function (s, p) { return args[p]; });
   };
 
   // Find out which requestAnimationFrame to use
@@ -61,49 +65,51 @@
     p.y = e.targetTouches ? e.targetTouches[0].clientY : e.clientY;
     try {
       p = p.matrixTransform(SVG.getScreenCTM().inverse());
-    } catch (e) {
+    } catch (x) {
     }
     return p;
-  };
+  }
+
+  function make_star(vb, g) {
+    var c,
+      x = Math.random() * vb.width + vb.x,
+      y = Math.random() * vb.height + vb.y;
+    g.appendChild(svg_elem("circle", { r: Math.random() * STAR_R,
+      cx: x, cy: y, fill: "white", "fill-opacity": Math.random() }));
+    c = g.appendChild(svg_elem("circle", { r: 2 * STAR_R, cx: x, cy: y,
+      "fill-opacity": 0 }));
+    c.addEventListener("mousedown", function () {
+      var move, up, line = g.appendChild(svg_elem("line", { x1: x, y1: y,
+        x2: x, y2: y, stroke: "white", "stroke-width": 4,
+        "stroke-opacity": Math.random() / 2 + 0.5 }));
+      move = function (e) {
+        var p = svg_point(e);
+        line.setAttribute("x2", p.x);
+        line.setAttribute("y2", p.y);
+      };
+      up = function (e) {
+        g.removeChild(line);
+        var elem = document.elementFromPoint(e.clientX, e.clientY);
+        if (elem && elem.parentNode === g && elem.hasAttribute("cx")) {
+          line.setAttribute("x2", elem.getAttribute("cx"));
+          line.setAttribute("y2", elem.getAttribute("cy"));
+          g.insertBefore(line, g.firstChild);
+        }
+        document.removeEventListener("mousemove", move, false);
+        document.removeEventListener("mouseup", up, false);
+      };
+      document.addEventListener("mousemove", move, false);
+      document.addEventListener("mouseup", up, false);
+    }, false);
+  }
 
   // Add stars to the background
   function stars() {
     var i, vb, g;
     vb = SVG.viewBox.baseVal;
     g = svg_elem("g");
-    for (i = 0; i < STARS; ++i) {
-      (function () {
-        var c,
-          x = Math.random() * vb.width + vb.x,
-          y = Math.random() * vb.height + vb.y;
-        g.appendChild(svg_elem("circle", { r: Math.random() * STAR_R,
-          cx: x, cy: y, fill: "white", "fill-opacity": Math.random() }));
-        c = g.appendChild(svg_elem("circle", { r: 2 * STAR_R, cx: x, cy: y,
-          "fill-opacity": 0 }));
-        c.addEventListener("mousedown", function (e) {
-          var move, up, line = g.appendChild(svg_elem("line", { x1: x, y1: y,
-            x2: x, y2: y, stroke: "white", "stroke-width": 4,
-            "stroke-opacity": Math.random() / 2 + 0.5 }));
-          move = function (e) {
-            var p = svg_point(e);
-            line.setAttribute("x2", p.x);
-            line.setAttribute("y2", p.y);
-          };
-          up = function (e) {
-            g.removeChild(line);
-            var elem = document.elementFromPoint(e.clientX, e.clientY);
-            if (elem && elem.parentNode === g && elem.hasAttribute("cx")) {
-              line.setAttribute("x2", elem.getAttribute("cx"));
-              line.setAttribute("y2", elem.getAttribute("cy"));
-              g.insertBefore(line, g.firstChild);
-            }
-            document.removeEventListener("mousemove", move, false);
-            document.removeEventListener("mouseup", up, false);
-          };
-          document.addEventListener("mousemove", move, false);
-          document.addEventListener("mouseup", up, false);
-        }, false);
-      }());
+    for (i = 0; i < STARS; i += 1) {
+      make_star(vb, g);
     }
     return g;
   }
@@ -140,28 +146,56 @@
   function create_spheroid(path, radius, amplitude, sectors) {
     var i;
     path.heights = [];
-    for (i = 0; i < sectors; ++i) {
+    for (i = 0; i < sectors; i += 1) {
       path.heights.push(radius + amplitude * (Math.random() - 0.5));
     }
     update_spheroid(path);
   }
 
-  function update_player() {
-    PLAYER.setAttribute("transform", "rotate({0}) translate({1})"
-      .fmt(PLAYER_A + PLAYER_DA / 2, PLAYER_ALTITUDE));
+  function update_particles(now) {
+    [].forEach.call(PARTICLES.childNodes, function (p) {
+      if (now > p.ttl) {
+        PARTICLES.removeChild(p);
+      } else {
+        p.h += PARTICLE_DH;
+        p.setAttribute("cx", p.h * Math.cos(p.t));
+        p.setAttribute("cy", p.h * Math.sin(p.t));
+      }
+    });
   }
 
+  // Rotate the planet and move the player
+  // TODO interpolate player position
   function tick(now) {
-    var t = (now % PERIOD_MS) / PERIOD_MS * 360;
-    SYSTEM.setAttribute("transform", "rotate({0})".fmt(t));
-    update_player();
+    SYSTEM.setAttribute("transform", "rotate({0})"
+      .fmt((now % PERIOD_MS) / PERIOD_MS * 360));
+    PLAYER.setAttribute("transform", "rotate({0}) translate({1})"
+      .fmt(PLAYER_A + PLAYER_DA / 2, PLAYER_ALTITUDE));
+    update_particles(now);
     window.requestAnimationFrame(tick);
   }
 
+  // Add particles after mining
+  function add_particles(sector) {
+    var i, particle;
+    for (i = 0; i < PARTICLES_N; i += 1) {
+      particle = PARTICLES.appendChild(svg_elem("circle", {
+        fill: PLANET.getAttribute("fill"), r: Math.random() * PARTICLE_R }));
+      particle.t = (sector / PLANET_SECTORS + Math.random() * 0.04 - 0.02) *
+        2 * Math.PI;
+      particle.h = PLANET.heights[sector] + Math.random() * PLANET_AMPLITUDE;
+      particle.ttl = Date.now() + PARTICLE_TTL_MS * (1 + Math.random() * 0.2);
+    }
+  }
+
+  // Mine for ore
+  // TODO ore :)
+  // TODO nearby sectors crumble
   function mine() {
-    var sector = Math.floor(PLAYER_A * PLANET_SECTORS / 360),
+    var i, sector = Math.floor(PLAYER_A * PLANET_SECTORS / 360),
       amp = Math.random() * PLANET_AMPLITUDE;
-    PLANET.heights[sector] = Math.max(PLANET.heights[sector] - amp, CORE_R / 2);
+    PLANET.heights[sector] = Math.max(PLANET.heights[sector] - amp, 0);
+    add_particles(sector);
     update_spheroid(PLANET);
   }
 
