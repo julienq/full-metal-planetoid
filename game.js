@@ -9,13 +9,16 @@
     PLANET = document.getElementById("planet"),        // planet itself
     CORE = document.getElementById("core"),            // planet core
     PLAYER = document.getElementById("player"),        // player saucer
+    CONE = document.getElementById("cone"),            // mining cone
     ORE = document.getElementById("ore"),              // ore group
     PARTICLES = document.getElementById("particles"),  // player saucer
     CASH_SPAN = document.getElementById("cash").querySelector("span"),
     ORE_N = 100,
     ORE_R = 20,
     ORE_DR = 1,
+    ORE_DISTRIBUTION = 0.3,  // smaller clusters around the center, must be < 1
     ORE_VALUE = 20,
+    CONE_R = 10,
     PARTICLE_R = 20,
     PARTICLE_TTL_MS = 2000,
     PARTICLE_DH = 10,
@@ -34,7 +37,7 @@
     PLAYER_A = 0,               // angular position of the player (in degrees)
     PLAYER_DA = 360 / PLANET_SECTORS,  // angular increment
     MINING_COST = 50,
-    CASH = 1000;
+    CASH = 0;
 
   // Simple format function for messages and templates. Use {0}, {1}...
   // as slots for parameters.
@@ -129,6 +132,7 @@
     return Math.sqrt(x * x + y * y);
   }
 
+  // (Re)draw a spheroid (the planet or its core) smoothly
   function update_spheroid(path) {
     var i, n, d, dt, x0, y0, x1, y1, tx, ty, l, x2, y2, xa, ya, xb, yb;
     d = "M{0},0".fmt(path.heights[0]);
@@ -154,11 +158,13 @@
   }
 
   // Create a roughly round planet of the given radius and number of sectors
-  function create_spheroid(path, radius, amplitude, sectors) {
+  function create_spheroid(path, radius, min_radius, amplitude, sectors) {
     var i;
     path.heights = [];
+    path.min_heights = [];
     for (i = 0; i < sectors; i += 1) {
       path.heights.push(radius + amplitude * (Math.random() - 0.5));
+      path.min_heights.push(min_radius + amplitude * (Math.random() - 0.5));
     }
     update_spheroid(path);
   }
@@ -182,10 +188,21 @@
   // Rotate the planet and move the player
   // TODO interpolate player position
   function tick(now) {
+    var sector = Math.floor(PLAYER_A * PLANET_SECTORS / 360),
+      h = PLAYER_ALTITUDE;
+      // h = PLANET.heights[sector] + PLANET_AMPLITUDE;
     SYSTEM.setAttribute("transform", "rotate({0})"
       .fmt((now % PERIOD_MS) / PERIOD_MS * 360));
     PLAYER.setAttribute("transform", "rotate({0}) translate({1})"
       .fmt(PLAYER_A + PLAYER_DA / 2, PLAYER_ALTITUDE));
+    CONE.setAttribute("d", "M0,0 L{0},{1} A{2},{2} 1 0,1 {3},{4} Z".fmt(
+      h * Math.cos(-PLAYER_DA * Math.PI / 360),
+      h * Math.sin(-PLAYER_DA * Math.PI / 360),
+      CONE_R,
+      h * Math.cos(PLAYER_DA * Math.PI / 360),
+      h * Math.sin(PLAYER_DA * Math.PI / 360)));
+    CONE.setAttribute("transform", "rotate({0})"
+      .fmt(PLAYER_A + PLAYER_DA / 2));
     update_particles(now);
     window.requestAnimationFrame(tick);
   }
@@ -207,8 +224,10 @@
 
   // Mine one sector, return the amount of mining done
   function mine_sector(sector, amplitude, get_ore) {
-    var h = Math.max(PLANET.heights[sector] - amplitude, PLANET_MIN_HEIGHT),
-      dh = PLANET.heights[sector] - h;
+    var h = Math.max(PLANET.heights[sector] - amplitude,
+        PLANET.min_heights[sector]),
+      dh = PLANET.heights[sector] - h,
+      e, p;
     PLANET.heights[sector] = h;
     add_particles(sector, Math.floor(dh / 4));
     [].forEach.call(ORE.childNodes, function (chunk) {
@@ -227,6 +246,8 @@
     return dh;
   }
 
+  // Actually the collapsing is more violent than I expected but I guess it
+  // works that way so I will count that as a feature and not a bug.
   function check_collapse(sector, incr) {
     var sectors = PLANET.heights.length,
       s = (sector + sectors + incr) % sectors,
@@ -242,16 +263,19 @@
   function add_ore() {
     var i, chunk;
     for (i = 0; i < ORE_N; i += 1) {
-      chunk = ORE.appendChild(svg_elem("circle", { r: Math.random() * ORE_R }));
+      chunk = ORE.appendChild(svg_elem("circle", { r: ORE_R / 2 +
+        Math.random() * ORE_R / 2 }));
       chunk.t = Math.random() * 2 * Math.PI;
       chunk.sector = Math.floor(chunk.t *  PLANET_SECTORS / (2 * Math.PI));
-      chunk.h = PLANET_MIN_HEIGHT +
-        Math.random() * (PLANET.heights[chunk.sector] - PLANET_MIN_HEIGHT);
+      chunk.h = PLANET.min_heights[chunk.sector] +
+        (1 - Math.pow(Math.random(), ORE_DISTRIBUTION)) *
+        (PLANET.heights[chunk.sector] - PLANET.min_heights[chunk.sector]);
       chunk.setAttribute("cx", chunk.h * Math.cos(chunk.t));
       chunk.setAttribute("cy", chunk.h * Math.sin(chunk.t));
     }
   }
 
+  // TODO display cash more prominently
   function update_cash() {
     CASH_SPAN.textContent = CASH;
   }
@@ -259,22 +283,21 @@
   // Mine for ore
   function mine() {
     var dh, sector = Math.floor(PLAYER_A * PLANET_SECTORS / 360);
-    if (CASH > 0) {
-      dh = mine_sector(sector, Math.random() * PLANET_AMPLITUDE, true);
-      if (dh > 0) {
-        CASH -= Math.ceil(MINING_COST * dh / PLANET_AMPLITUDE);
-        check_collapse(sector, -1);
-        check_collapse(sector, 1);
-        update_spheroid(PLANET);
-      }
+    dh = mine_sector(sector, Math.random() * PLANET_AMPLITUDE, true);
+    if (dh > 0) {
+      CASH -= Math.ceil(MINING_COST * dh / PLANET_AMPLITUDE);
+      check_collapse(sector, -1);
+      check_collapse(sector, 1);
+      update_spheroid(PLANET);
       update_cash();
     }
   }
 
   // Initialize the game
   SVG.insertBefore(stars(), SYSTEM);
-  create_spheroid(PLANET, PLANET_R, PLANET_AMPLITUDE, PLANET_SECTORS);
-  create_spheroid(CORE, CORE_R, CORE_AMPLITUDE, CORE_SECTORS);
+  create_spheroid(PLANET, PLANET_R, PLANET_MIN_HEIGHT, PLANET_AMPLITUDE,
+      PLANET_SECTORS);
+  create_spheroid(CORE, CORE_R, 0, CORE_AMPLITUDE, CORE_SECTORS);
   add_ore();
   update_cash();
 
