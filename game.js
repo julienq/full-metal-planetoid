@@ -4,7 +4,7 @@
   "use strict";
 
   var ON = false,
-    SZ = 2000,
+    SZ = 4000,
     SMOOTHING = 0.2,             // scale factor for Bézier smoothing
     SVG = document.querySelector("svg"),               // the SVG context
     SYSTEM = document.getElementById("system"),        // planetary system
@@ -275,7 +275,9 @@
           cost_particle(c, sector);
         }
         PARTICLES.appendChild(chunk);
-        if (ORE.childNodes.length === 0) game_over();
+        if (ORE.childNodes.length === 0) {
+          game_over();
+        }
       }
     });
     if (cost && get_ore) {
@@ -334,7 +336,7 @@
     var ratio, w, h;
     SVG.style.width = "{0}px".fmt(window.innerWidth);
     SVG.style.height = "{0}px".fmt(window.innerHeight);
-    ratio = Math.min(window.innerWidth, window.innerHeight) / 4000;
+    ratio = Math.min(window.innerWidth, window.innerHeight) / SZ;
     w = window.innerWidth / ratio;
     h = window.innerHeight / ratio;
     SVG.setAttribute("viewBox", "{0} {1} {2} {3}".fmt(-w / 2, -h / 2, w, h));
@@ -362,7 +364,7 @@
 
   document.addEventListener("click", function (e) {
     if (!ON) {
-      SVG.setAttribute("opacity", 1);
+      SVG.parentNode.style.opacity = 1;
       ON = true;
       [].forEach.call(document.querySelectorAll("p"), function (p) {
         p.style.display = "none";
