@@ -7,7 +7,11 @@
     PLANET = document.getElementById("planet"),        // planet itself
     CORE = document.getElementById("core"),            // planet core
     PLAYER = document.getElementById("player"),        // player saucer
+    ORE = document.getElementById("ore"),              // ore group
     PARTICLES = document.getElementById("particles"),  // player saucer
+    ORE_N = 100,
+    ORE_R = 20,
+    ORE_DR = 1,
     PARTICLE_R = 20,
     PARTICLE_TTL_MS = 2000,
     PARTICLE_DH = 10,
@@ -162,6 +166,9 @@
         p.h += p.dh;
         p.setAttribute("cx", p.h * Math.cos(p.t));
         p.setAttribute("cy", p.h * Math.sin(p.t));
+        if (p.dr) {
+          p.setAttribute("r", parseFloat(p.getAttribute("r")) + p.dr);
+        }
       }
     });
   }
@@ -192,11 +199,23 @@
   }
 
   // Mine one sector, return the amount of mining done
-  function mine_sector(sector, amplitude) {
+  function mine_sector(sector, amplitude, get_ore) {
     var h = Math.max(PLANET.heights[sector] - amplitude, PLANET_MIN_HEIGHT),
       dh = PLANET.heights[sector] - h;
     PLANET.heights[sector] = h;
     add_particles(sector, Math.floor(dh / 4));
+    [].forEach.call(ORE.childNodes, function(chunk) {
+      if (chunk.sector === sector && chunk.h >= PLANET.heights[sector]) {
+        ORE.removeChild(chunk);
+        chunk.dh = PARTICLE_DH * 1 + (Math.random() * 0.2 - 0.1);
+        chunk.ttl = Date.now() + PARTICLE_TTL_MS * (1 + Math.random() * 0.2);
+        chunk.setAttribute("fill", ORE.getAttribute("fill"));
+        if (get_ore) {
+          chunk.dr = ORE_DR;
+        }
+        PARTICLES.appendChild(chunk);
+      }
+    });
     return dh;
   }
 
@@ -211,12 +230,25 @@
     }
   }
 
+  // Add chunks of ore
+  function add_ore() {
+    var i, chunk;
+    for (i = 0; i < ORE_N; i += 1) {
+      chunk = ORE.appendChild(svg_elem("circle", { r: Math.random() * ORE_R }));
+      chunk.t = Math.random() * 2 * Math.PI;
+      chunk.sector = Math.floor(chunk.t *  PLANET_SECTORS / (2 * Math.PI));
+      chunk.h = PLANET_MIN_HEIGHT +
+        Math.random() * (PLANET.heights[chunk.sector] - PLANET_MIN_HEIGHT);
+      chunk.setAttribute("cx", chunk.h * Math.cos(chunk.t));
+      chunk.setAttribute("cy", chunk.h * Math.sin(chunk.t));
+    }
+  }
+
   // Mine for ore
-  // TODO ore :)
   function mine() {
     var i, sector = Math.floor(PLAYER_A * PLANET_SECTORS / 360),
       amp = Math.random() * PLANET_AMPLITUDE;
-    if (mine_sector(sector, Math.random() * PLANET_AMPLITUDE) > 0) {
+    if (mine_sector(sector, Math.random() * PLANET_AMPLITUDE, true) > 0) {
       check_collapse(sector, -1);
       check_collapse(sector, 1);
       update_spheroid(PLANET);
@@ -227,6 +259,7 @@
   SVG.insertBefore(stars(), SYSTEM);
   create_spheroid(PLANET, PLANET_R, PLANET_AMPLITUDE, PLANET_SECTORS);
   create_spheroid(CORE, CORE_R, CORE_AMPLITUDE, CORE_SECTORS);
+  add_ore();
 
   document.addEventListener("keydown", function (e) {
     if (e.keyCode === 37) {
