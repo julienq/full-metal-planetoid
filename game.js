@@ -40,6 +40,8 @@
     PLAYER_A = 0,               // angular position of the player (in degrees)
     PLAYER_DA = 360 / PLANET_SECTORS,  // angular increment
     MINING_COST = 50,
+    DIFFICULTY = 1,
+    PLANETS = 1,
     CASH = 0;
 
   // Simple format function for messages and templates. Use {0}, {1}...
@@ -241,7 +243,15 @@
 
   function game_over() {
     ON = false;
-    document.getElementById("game-over").style.display = "block";
+    if (CASH < 0) {
+      document.getElementById("game-over").style.display = "block";
+      document.getElementById("game-over").querySelector("span").textContent =
+        "{0} planet{1}.".fmt(PLANETS, PLANETS > 1 ? "s" : "");
+    } else {
+      document.getElementById("continue").style.display = "block";
+      DIFFICULTY *= 1.25;
+      PLANETS += 1;
+    }
   }
 
   // Mine one sector, return the amount of mining done
@@ -249,7 +259,7 @@
     var h = Math.max(PLANET.heights[sector] - amplitude,
         PLANET.min_heights[sector]),
       dh = PLANET.heights[sector] - h,
-      cost = Math.ceil(MINING_COST * dh / PLANET_AMPLITUDE),
+      cost = Math.ceil(MINING_COST * dh / PLANET_AMPLITUDE * DIFFICULTY),
       c;
     PLANET.heights[sector] = h;
     add_particles(sector, Math.floor(dh / 4));
@@ -295,9 +305,8 @@
         Math.random() * ORE_R / 2 }));
       chunk.t = Math.random() * 2 * Math.PI;
       chunk.sector = Math.floor(chunk.t *  PLANET_SECTORS / (2 * Math.PI));
-      chunk.h = PLANET.min_heights[chunk.sector] +
-        (1 - Math.pow(Math.random(), ORE_DISTRIBUTION)) *
-        (PLANET.heights[chunk.sector] - PLANET.min_heights[chunk.sector]);
+      chunk.h = CORE_R + (1 - Math.pow(Math.random(), ORE_DISTRIBUTION)) *
+        (PLANET.heights[chunk.sector] - CORE_R);
       chunk.setAttribute("cx", chunk.h * Math.cos(chunk.t));
       chunk.setAttribute("cy", chunk.h * Math.sin(chunk.t));
     }
@@ -335,12 +344,15 @@
   window.addEventListener("resize", resize, false);
   resize();
 
-  // Initialize the game
-  create_spheroid(PLANET, PLANET_R, PLANET_MIN_HEIGHT, PLANET_AMPLITUDE,
-      PLANET_SECTORS);
-  create_spheroid(CORE, CORE_R, 0, CORE_AMPLITUDE, CORE_SECTORS);
-  add_ore();
-  update_cash();
+  function reset_game() {
+    create_spheroid(CORE, CORE_R, 0, CORE_AMPLITUDE, CORE_SECTORS);
+    create_spheroid(PLANET, PLANET_R, PLANET_MIN_HEIGHT, PLANET_AMPLITUDE,
+        PLANET_SECTORS);
+    add_ore();
+    update_cash();
+  }
+
+  reset_game();
 
   [].forEach.call(document.querySelectorAll("a"), function (a) {
     a.addEventListener("click", function (e) {
@@ -352,22 +364,25 @@
     if (!ON) {
       SVG.setAttribute("opacity", 1);
       ON = true;
-      document.getElementById("info").style.display = "none";
+      [].forEach.call(document.querySelectorAll("p"), function (p) {
+        p.style.display = "none";
+      });
+      if (CASH >= 0) {
+        reset_game();
+      }
     }
   }, false);
 
   document.addEventListener("keydown", function (e) {
-    if (ON) {
-      if (e.keyCode === 37) {
-        e.preventDefault();
-        PLAYER_A = (PLAYER_A - PLAYER_DA + 360) % 360;
-      } else if (e.keyCode === 39) {
-        e.preventDefault();
-        PLAYER_A = (PLAYER_A + PLAYER_DA) % 360;
-      } else if (e.keyCode === 40) {
-        e.preventDefault();
-        mine();
-      }
+    if (e.keyCode === 37) {
+      e.preventDefault();
+      PLAYER_A = (PLAYER_A - PLAYER_DA + 360) % 360;
+    } else if (e.keyCode === 39) {
+      e.preventDefault();
+      PLAYER_A = (PLAYER_A + PLAYER_DA) % 360;
+    } else if (e.keyCode === 40 && ON) {
+      e.preventDefault();
+      mine();
     }
   });
 
