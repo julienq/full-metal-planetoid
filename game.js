@@ -239,6 +239,11 @@
     t.ttl = Date.now() + PARTICLE_TTL_MS * (1 + Math.random() * 0.2);
   }
 
+  function game_over() {
+    ON = false;
+    document.getElementById("game-over").style.display = "block";
+  }
+
   // Mine one sector, return the amount of mining done
   function mine_sector(sector, amplitude, get_ore) {
     var h = Math.max(PLANET.heights[sector] - amplitude,
@@ -260,6 +265,7 @@
           cost_particle(c, sector);
         }
         PARTICLES.appendChild(chunk);
+        if (ORE.childNodes.length === 0) game_over();
       }
     });
     if (cost && get_ore) {
@@ -336,13 +342,19 @@
   add_ore();
   update_cash();
 
+  [].forEach.call(document.querySelectorAll("a"), function (a) {
+    a.addEventListener("click", function (e) {
+      e.stopPropagation();
+    }, false);
+  });
+
   document.addEventListener("click", function (e) {
     if (!ON) {
       SVG.setAttribute("opacity", 1);
       ON = true;
-      document.querySelector("p").style.display = "none";
+      document.getElementById("info").style.display = "none";
     }
-  }, true);
+  }, false);
 
   document.addEventListener("keydown", function (e) {
     if (ON) {
