@@ -10,8 +10,17 @@
         font-family: Univers, "Helvetica Neue", Helvetica, sans-serif;
         margin: 0;
         padding: 0;
+        color: white;
       }
-      a { text-decoration: none; color: #ff4040; }
+      a {
+        text-decoration: none;
+        color: #ff4040;
+      }
+      #cash {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+      }
     </style>
   </head>
   <body>
@@ -29,6 +38,7 @@
         <g id="particles"/>
       </g>
     </svg>
+    <p id="cash">Cash: <span></span></p>
     <script src="game.js"></script>
   </body>
 </html>

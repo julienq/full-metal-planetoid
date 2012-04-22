@@ -1,3 +1,5 @@
+/*jslint devel: true, browser: true, unparam: true, maxerr: 50, indent: 2 */
+
 (function () {
   "use strict";
 
@@ -9,9 +11,11 @@
     PLAYER = document.getElementById("player"),        // player saucer
     ORE = document.getElementById("ore"),              // ore group
     PARTICLES = document.getElementById("particles"),  // player saucer
+    CASH_SPAN = document.getElementById("cash").querySelector("span"),
     ORE_N = 100,
     ORE_R = 20,
     ORE_DR = 1,
+    ORE_VALUE = 20,
     PARTICLE_R = 20,
     PARTICLE_TTL_MS = 2000,
     PARTICLE_DH = 10,
@@ -28,11 +32,12 @@
     STAR_R = 10,
     PLAYER_ALTITUDE = 1500,
     PLAYER_A = 0,               // angular position of the player (in degrees)
-    PLAYER_DA = 360 / PLANET_SECTORS;  // angular increment
+    PLAYER_DA = 360 / PLANET_SECTORS,  // angular increment
+    MINING_COST = 50,
+    CASH = 1000;
 
   // Simple format function for messages and templates. Use {0}, {1}...
-  // as slots for parameters. Missing parameters are replaced with the empty
-  // string.
+  // as slots for parameters.
   String.prototype.fmt = function () {
     var args = [].slice.call(arguments);
     return this.replace(/\{(\d+)\}/g, function (s, p) { return args[p]; });
@@ -83,7 +88,8 @@
       cx: x, cy: y, fill: "white", "fill-opacity": Math.random() }));
     c = g.appendChild(svg_elem("circle", { r: 2 * STAR_R, cx: x, cy: y,
       "fill-opacity": 0 }));
-    c.addEventListener("mousedown", function () {
+    c.addEventListener("mousedown", function (e) {
+      e.preventDefault();
       var move, up, line = g.appendChild(svg_elem("line", { x1: x, y1: y,
         x2: x, y2: y, stroke: "white", "stroke-width": 4,
         "stroke-opacity": Math.random() / 2 + 0.5 }));
@@ -188,12 +194,13 @@
   function add_particles(sector, n) {
     var i, particle;
     for (i = 0; i < n; i += 1) {
-      particle = PARTICLES.appendChild(svg_elem("circle", {
-        fill: PLANET.getAttribute("fill"), r: Math.random() * PARTICLE_R }));
+      particle = PARTICLES.appendChild(svg_elem("circle",
+        { fill: PLANET.getAttribute("fill"),
+          r: Math.random() * PARTICLE_R }));
       particle.t = (sector / PLANET_SECTORS + Math.random() * 0.04 - 0.02) *
         2 * Math.PI;
       particle.h = PLANET.heights[sector] + Math.random() * PLANET_AMPLITUDE;
-      particle.dh = PARTICLE_DH * 1 + (Math.random() * 0.2 - 0.1);
+      particle.dh = PARTICLE_DH * (1 + (Math.random() * 0.2 - 0.1));
       particle.ttl = Date.now() + PARTICLE_TTL_MS * (1 + Math.random() * 0.2);
     }
   }
@@ -204,14 +211,15 @@
       dh = PLANET.heights[sector] - h;
     PLANET.heights[sector] = h;
     add_particles(sector, Math.floor(dh / 4));
-    [].forEach.call(ORE.childNodes, function(chunk) {
+    [].forEach.call(ORE.childNodes, function (chunk) {
       if (chunk.sector === sector && chunk.h >= PLANET.heights[sector]) {
         ORE.removeChild(chunk);
-        chunk.dh = PARTICLE_DH * 1 + (Math.random() * 0.2 - 0.1);
+        chunk.dh = PARTICLE_DH * (1 + (Math.random() * 0.2 - 0.1));
         chunk.ttl = Date.now() + PARTICLE_TTL_MS * (1 + Math.random() * 0.2);
         chunk.setAttribute("fill", ORE.getAttribute("fill"));
         if (get_ore) {
           chunk.dr = ORE_DR;
+          CASH += Math.round(chunk.getAttribute("r") * ORE_VALUE);
         }
         PARTICLES.appendChild(chunk);
       }
@@ -244,14 +252,22 @@
     }
   }
 
+  function update_cash() {
+    CASH_SPAN.textContent = CASH;
+  }
+
   // Mine for ore
   function mine() {
-    var i, sector = Math.floor(PLAYER_A * PLANET_SECTORS / 360),
-      amp = Math.random() * PLANET_AMPLITUDE;
-    if (mine_sector(sector, Math.random() * PLANET_AMPLITUDE, true) > 0) {
-      check_collapse(sector, -1);
-      check_collapse(sector, 1);
-      update_spheroid(PLANET);
+    var dh, sector = Math.floor(PLAYER_A * PLANET_SECTORS / 360);
+    if (CASH > 0) {
+      dh = mine_sector(sector, Math.random() * PLANET_AMPLITUDE, true);
+      if (dh > 0) {
+        CASH -= Math.ceil(MINING_COST * dh / PLANET_AMPLITUDE);
+        check_collapse(sector, -1);
+        check_collapse(sector, 1);
+        update_spheroid(PLANET);
+      }
+      update_cash();
     }
   }
 
@@ -260,6 +276,7 @@
   create_spheroid(PLANET, PLANET_R, PLANET_AMPLITUDE, PLANET_SECTORS);
   create_spheroid(CORE, CORE_R, CORE_AMPLITUDE, CORE_SECTORS);
   add_ore();
+  update_cash();
 
   document.addEventListener("keydown", function (e) {
     if (e.keyCode === 37) {
