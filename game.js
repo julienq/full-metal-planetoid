@@ -5,6 +5,7 @@
     SECTORS = 36,                // the planet is divided in sectors
     AMPLITUDE = 50,              // bump/mining amplitude
     DT = 2 * Math.PI / SECTORS,  // angle of a single sector
+    SMOOTHING = 0.2,             // scale factor for Bézier smoothing
     PLANET_COLOR = "#ff4040",    // TODO change to show the status of the planet
 
     SVG = document.querySelector("svg"),
@@ -107,18 +108,32 @@
     return g;
   }
 
+  function magnitude(x, y) {
+    return Math.sqrt(x * x + y * y);
+  }
+
   function update_planet(planet) {
-    var i, t, d, x, y;
-    for (i = 0, t = 0, d = ""; i < SECTORS; ++i) {
-      x = planet.heights[i] * Math.cos(t);
-      y = planet.heights[i] * Math.sin(t);
-      d += "L{0}, {1}".fmt(x, y);
-      t += DT;
-      x = planet.heights[i] * Math.cos(t);
-      y = planet.heights[i] * Math.sin(t);
-      d += "L{0}, {1}".fmt(x, y);
+    var i, d, x0, y0, x1, y1, tx, ty, l, x2, y2, xa, ya, xb, yb;
+    d = "M{0},0".fmt(planet.heights[0]);
+    for (i = 0; i < SECTORS; i += 1) {
+      x0 = planet.heights[(i + SECTORS - 1) % SECTORS] * Math.cos((i - 1) * DT);
+      y0 = planet.heights[(i + SECTORS - 1) % SECTORS] * Math.sin((i - 1) * DT);
+      x1 = planet.heights[i] * Math.cos(i * DT);
+      y1 = planet.heights[i] * Math.sin(i * DT);
+      x2 = planet.heights[(i + 1) % SECTORS] * Math.cos((i + 1) * DT);
+      y2 = planet.heights[(i + 1) % SECTORS] * Math.sin((i + 1) * DT);
+      tx = x2 - x0;
+      ty = y2 - y0;
+      l = Math.sqrt(tx * tx + ty * ty);
+      tx = tx / l;
+      ty = ty / l;
+      xa = x1 - SMOOTHING * tx * magnitude(x1 - x0, y1 - y0);
+      ya = y1 - SMOOTHING * ty * magnitude(x1 - x0, y1 - y0);
+      xb = x1 + SMOOTHING * tx * magnitude(x1 - x2, y1 - y2);
+      yb = y1 + SMOOTHING * ty * magnitude(x1 - x2, y1 - y2);
+      d += "C{0},{1} {2},{3} {4},{5}".fmt(xa, ya, x1, y1, xb, yb);
     }
-    planet.path.setAttribute("d", d.replace(/^L/, "M"));
+    planet.path.setAttribute("d", d);
   }
 
   // Create a roughly round planet of the given radius and number of sectors
