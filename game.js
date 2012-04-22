@@ -3,7 +3,9 @@
 (function () {
   "use strict";
 
-  var SMOOTHING = 0.2,             // scale factor for Bézier smoothing
+  var ON = false,
+    SZ = 2000,
+    SMOOTHING = 0.2,             // scale factor for Bézier smoothing
     SVG = document.querySelector("svg"),               // the SVG context
     SYSTEM = document.getElementById("system"),        // planetary system
     PLANET = document.getElementById("planet"),        // planet itself
@@ -12,6 +14,7 @@
     CONE = document.getElementById("cone"),            // mining cone
     ORE = document.getElementById("ore"),              // ore group
     PARTICLES = document.getElementById("particles"),  // player saucer
+    STARS = document.getElementById("stars"),
     CASH_TEXT = document.getElementById("cash"),
     CASH_OFFSET = 200,
     ORE_N = 100,
@@ -31,7 +34,7 @@
     PLANET_MIN_HEIGHT = CORE_R / 2,
     CORE_AMPLITUDE = 20,                         // core amplitude
     CORE_SECTORS = 16,
-    STARS = 1000,                // number of stars
+    N_STARS = 1000,                // number of stars
     STAR_R = 10,
     PLAYER_ALTITUDE = 1500,
     PLAYER_A = 0,               // angular position of the player (in degrees)
@@ -118,14 +121,15 @@
   }
 
   // Add stars to the background
-  function stars() {
-    var i, vb, g;
+  function make_stars() {
+    var i, vb;
     vb = SVG.viewBox.baseVal;
-    g = svg_elem("g");
-    for (i = 0; i < STARS; i += 1) {
-      make_star(vb, g);
+    while (STARS.firstChild) {
+      STARS.removeChild(STARS.firstChild);
     }
-    return g;
+    for (i = 0; i < N_STARS; i += 1) {
+      make_star(vb, STARS);
+    }
   }
 
   function magnitude(x, y) {
@@ -311,24 +315,47 @@
     }
   }
 
+  function resize() {
+    var ratio, w, h;
+    SVG.style.width = "{0}px".fmt(window.innerWidth);
+    SVG.style.height = "{0}px".fmt(window.innerHeight);
+    ratio = Math.min(window.innerWidth, window.innerHeight) / 4000;
+    w = window.innerWidth / ratio;
+    h = window.innerHeight / ratio;
+    SVG.setAttribute("viewBox", "{0} {1} {2} {3}".fmt(-w / 2, -h / 2, w, h));
+    make_stars();
+  }
+
+  window.addEventListener("resize", resize, false);
+  resize();
+
   // Initialize the game
-  SVG.insertBefore(stars(), SYSTEM);
   create_spheroid(PLANET, PLANET_R, PLANET_MIN_HEIGHT, PLANET_AMPLITUDE,
       PLANET_SECTORS);
   create_spheroid(CORE, CORE_R, 0, CORE_AMPLITUDE, CORE_SECTORS);
   add_ore();
   update_cash();
 
+  document.addEventListener("click", function (e) {
+    if (!ON) {
+      SVG.setAttribute("opacity", 1);
+      ON = true;
+      document.querySelector("p").style.display = "none";
+    }
+  }, true);
+
   document.addEventListener("keydown", function (e) {
-    if (e.keyCode === 37) {
-      e.preventDefault();
-      PLAYER_A = (PLAYER_A - PLAYER_DA + 360) % 360;
-    } else if (e.keyCode === 39) {
-      e.preventDefault();
-      PLAYER_A = (PLAYER_A + PLAYER_DA) % 360;
-    } else if (e.keyCode === 40) {
-      e.preventDefault();
-      mine();
+    if (ON) {
+      if (e.keyCode === 37) {
+        e.preventDefault();
+        PLAYER_A = (PLAYER_A - PLAYER_DA + 360) % 360;
+      } else if (e.keyCode === 39) {
+        e.preventDefault();
+        PLAYER_A = (PLAYER_A + PLAYER_DA) % 360;
+      } else if (e.keyCode === 40) {
+        e.preventDefault();
+        mine();
+      }
     }
   });
 

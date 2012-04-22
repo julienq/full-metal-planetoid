@@ -8,18 +8,30 @@
       body {
         background-color: black;
         font-family: Univers, "Helvetica Neue", Helvetica, sans-serif;
-        margin: 0;
-        padding: 0;
         color: white;
+        font-size: 48px;
       }
       a {
         text-decoration: none;
         color: #ff4040;
       }
+      p, svg {
+        position: absolute;
+        top: 0;
+        left: 0;
+      }
+      p {
+        padding: 0 48px;
+      }
+      .title {
+        font-weight: bold;
+        margin-right: 1em;
+      }
     </style>
   </head>
   <body>
-    <svg viewBox="-2000 -2000 4000 4000">
+    <svg opacity="0.2">
+      <g id="stars" fill="white"/>
       <g id="system" font-family="Univers, Futura, sans-serif" font-size="100">
         <path id="core" fill="#403530"/>
         <path id="planet" fill="#ff4040" fill-rule="nonzero"/>
@@ -35,6 +47,15 @@
         <text id="cash"/>
       </g>
     </svg>
+    <p><span class="title">Full Metal Planetoid</span> Move your flying saucer
+    with the left and right keys, mine with the down key. Mining costs money.
+    Finding ore brings money. Try to break even, at least. Click anywhere to
+    start playing. Made for <a
+      href="http://www.ludumdare.com/compo/ludum-dare-23/?action=preview">Ludum
+      Dare 23</a>.  Copyright © <span class="roman">mmxii</span>,
+    <a href="http://romulusetrem.us/">romulusetrem.us</a>. Find it on <a
+      href="https://github.com/julienq/tiny-world">Github</a>.</p>
+
     <script src="game.js"></script>
   </body>
 </html>
