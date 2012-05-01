@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Eriezium</title>
+    <meta charset="UTF-8">
+    <meta http-equiv="cache-control" content="no-cache">
+    <style>
+      body {
+        background-color: black;
+        font-family: Univers, "Helvetica Neue", Helvetica, sans-serif;
+        color: white;
+        font-size: 48px;
+      }
+      a {
+        text-decoration: none;
+        color: #ff4040;
+      }
+      p, svg {
+        position: absolute;
+        top: 0;
+        left: 0;
+      }
+      p {
+        padding: 0 48px;
+      }
+      .title {
+        font-weight: bold;
+        margin-right: 1em;
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      <svg>
+        <g id="stars" fill="white"/>
+        <g id="system" font-family="Univers, Futura, sans-serif"
+          font-size="100">
+          <path id="core" fill="#403530"/>
+          <path id="planet" fill="#ff4040" fill-rule="nonzero"/>
+        </g>
+      </svg>
+    </div>
+    <script src="zap.js"></script>
+    <script src="eriezium.js"></script>
+  </body>
+</html>
+
